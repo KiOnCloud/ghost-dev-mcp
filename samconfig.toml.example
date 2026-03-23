@@ -9,7 +9,7 @@ parallel = true
 capabilities       = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 confirm_changeset  = true
 resolve_s3         = true
-region             = "ap-southeast-1"
+region             = "<your-region>"
 parameter_overrides = "Environment=prod"
 
 [default.local_start_api.parameters]
@@ -17,6 +17,6 @@ warm_containers = "EAGER"
 
 [staging.deploy.parameters]
 stack_name          = "aws-ghost-developer-staging"
-region              = "ap-southeast-1"
+region              = "<your-region>"
 parameter_overrides = "Environment=staging"
 confirm_changeset   = false

@@ -14,7 +14,12 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-prod}"
 STACK_NAME="aws-ghost-developer-secrets-${ENVIRONMENT}"
-REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
+if [[ -z "${AWS_DEFAULT_REGION:-}" ]]; then
+  echo "ERROR: AWS_DEFAULT_REGION is not set."
+  echo "  export AWS_DEFAULT_REGION=ap-southeast-1"
+  exit 1
+fi
+REGION="$AWS_DEFAULT_REGION"
 TEMPLATE_PATH="$(dirname "$0")/../infra/secrets.yaml"
 
 # ── Validate environment ──────────────────────────────────────────────────────

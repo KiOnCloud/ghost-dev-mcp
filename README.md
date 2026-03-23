@@ -73,6 +73,7 @@ pip install -r requirements.txt
 ### 2. Run bootstrap (one command does everything)
 
 ```bash
+export AWS_DEFAULT_REGION=ap-southeast-1   # set your region
 ./scripts/bootstrap.sh prod
 ```
 

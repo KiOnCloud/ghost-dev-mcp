@@ -13,7 +13,12 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-prod}"
-REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
+if [[ -z "${AWS_DEFAULT_REGION:-}" ]]; then
+  echo "ERROR: AWS_DEFAULT_REGION is not set."
+  echo "  export AWS_DEFAULT_REGION=ap-southeast-1"
+  exit 1
+fi
+REGION="$AWS_DEFAULT_REGION"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 SECRETS_STACK="aws-ghost-developer-secrets-${ENVIRONMENT}"
