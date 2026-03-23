@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "aws-ghost-developer": {
+      "url": "https://<api-id>.execute-api.<region>.amazonaws.com/mcp",
+      "transport": "http",
+      "headers": {
+        "x-api-key": "<key from bootstrap.sh output>"
+      }
+    }
+  }
+}
