@@ -21,6 +21,13 @@ fi
 REGION="$AWS_DEFAULT_REGION"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Convert Git Bash /c/... paths to Windows C:/... paths for AWS CLI
+if command -v cygpath >/dev/null 2>&1; then
+  ROOT_DIR_WIN="$(cygpath -w "$ROOT_DIR")"
+else
+  ROOT_DIR_WIN="$ROOT_DIR"
+fi
+
 SECRETS_STACK="aws-ghost-developer-secrets-${ENVIRONMENT}"
 APP_STACK="aws-ghost-developer-${ENVIRONMENT}"
 
@@ -55,31 +62,38 @@ echo ""
 read -r -p "Continue? [y/N] " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
 
-if aws cloudformation describe-stacks \
-     --stack-name "$SECRETS_STACK" \
-     --region "$REGION" \
-     --output text 2>/dev/null | grep -q "COMPLETE"; then
-  CFN_ACTION="update-stack"
-  echo "Updating secrets stack: ${SECRETS_STACK}"
-else
-  CFN_ACTION="create-stack"
-  echo "Creating secrets stack: ${SECRETS_STACK}"
-fi
-
-aws cloudformation ${CFN_ACTION} \
+STACK_STATUS=$(aws cloudformation describe-stacks \
   --stack-name "$SECRETS_STACK" \
   --region "$REGION" \
-  --template-body "file://${ROOT_DIR}/infra/secrets.yaml" \
-  --parameters \
-    ParameterKey=Environment,ParameterValue="${ENVIRONMENT}" \
-    ParameterKey=ApiKeyValue,ParameterValue="${API_KEY}" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --output text > /dev/null
+  --query "Stacks[0].StackStatus" \
+  --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
-echo "Waiting for secrets stack..."
-aws cloudformation wait "stack-${CFN_ACTION//-stack/}-complete" \
-  --stack-name "$SECRETS_STACK" \
-  --region "$REGION"
+SECRET_NAME="${ENVIRONMENT}/ghost-developer/api-key"
+
+if [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]] || [[ "$STACK_STATUS" == "DELETE_COMPLETE" ]]; then
+  echo "Creating secrets stack: ${SECRETS_STACK}"
+  aws cloudformation create-stack \
+    --stack-name "$SECRETS_STACK" \
+    --region "$REGION" \
+    --template-body "file://${ROOT_DIR_WIN}/infra/secrets.yaml" \
+    --parameters \
+      ParameterKey=Environment,ParameterValue="${ENVIRONMENT}" \
+      ParameterKey=ApiKeyValue,ParameterValue="${API_KEY}" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --output text > /dev/null
+
+  echo "Waiting for secrets stack..."
+  aws cloudformation wait stack-create-complete \
+    --stack-name "$SECRETS_STACK" \
+    --region "$REGION"
+else
+  echo "Secrets stack exists (${STACK_STATUS}). Updating secret value directly..."
+  aws secretsmanager put-secret-value \
+    --secret-id "$SECRET_NAME" \
+    --secret-string "{\"api_key\": \"${API_KEY}\"}" \
+    --region "$REGION" \
+    --output text > /dev/null
+fi
 
 echo "Secrets stack ready."
 echo ""

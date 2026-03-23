@@ -11,7 +11,7 @@ Parameters:
 
 Globals:
   Function:
-    Runtime: python3.12
+    Runtime: python3.13
     Timeout: 29
     MemorySize: 256
     Environment:
@@ -27,13 +27,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "aws-ghost-developer-${Environment}"
-      CodeUri: src/
-      Handler: handler.lambda_handler
+      CodeUri: ./
+      Handler: src.handler.lambda_handler
       Description: MCP Server for AWS RCA — SQS DLQ, CloudWatch Insights, RDS PI
       Role: !GetAtt GhostDeveloperRole.Arn
-      AutoPublishAlias: live          # needed for provisioned concurrency
-      ProvisionedConcurrencyConfig:
-        ProvisionedConcurrentExecutions: 1
       Events:
         McpPost:
           Type: HttpApi
@@ -53,6 +50,8 @@ Resources:
             ApiId: !Ref McpApi
             Path: /health
             Method: GET
+            Auth:
+              Authorizer: NONE
 
   # ── API Gateway (HTTP API) ─────────────────────────────────────────────────
 
@@ -69,14 +68,14 @@ Resources:
             FunctionInvokeRole: !GetAtt AuthorizerInvokeRole.Arn
             AuthorizerPayloadFormatVersion: "2.0"
             EnableSimpleResponses: true
+            AuthorizerResultTtlInSeconds: 0
             Identity:
               Headers:
                 - x-api-key
-        # /health bypass auth so load balancers can reach it
-        RouteSettings:
-          "GET /health":
-            ThrottlingBurstLimit: 10
-            ThrottlingRateLimit: 10
+      RouteSettings:
+        "GET /health":
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 10
       CorsConfiguration:
         AllowOrigins:
           - "*"
@@ -93,8 +92,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "aws-ghost-developer-authorizer-${Environment}"
-      CodeUri: src/
-      Handler: authorizer.lambda_handler
+      CodeUri: ./
+      Handler: src.authorizer.lambda_handler
       Role: !GetAtt GhostDeveloperRole.Arn
       Environment:
         Variables:

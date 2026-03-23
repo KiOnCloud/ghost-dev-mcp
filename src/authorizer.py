@@ -14,13 +14,14 @@ def lambda_handler(event: dict, context) -> bool:
     provided_key = (event.get("headers") or {}).get("x-api-key", "")
 
     if not provided_key:
-        return False
+        return {"isAuthorized": False}
 
     try:
         secret = get_secret(SECRET_NAME)
         expected_key = secret.get("api_key", "")
     except Exception:
-        return False
+        return {"isAuthorized": False}
 
     # Constant-time comparison to prevent timing attacks
-    return hmac.compare_digest(provided_key.encode(), expected_key.encode())
+    authorized = hmac.compare_digest(provided_key.encode(), expected_key.encode())
+    return {"isAuthorized": authorized}

@@ -3,26 +3,40 @@ import traceback
 from src.tools import TOOL_REGISTRY
 from src.transport.sse import mcp_response, mcp_error
 
-MCP_VERSION = "2024-11-05"
+MCP_VERSION = "2025-11-25"
 
 
 def lambda_handler(event: dict, context) -> dict:
     path = event.get("rawPath", event.get("path", "/"))
     method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+    headers = event.get("headers") or {}
+
+    print(json.dumps({
+        "method": method,
+        "path": path,
+        "accept": headers.get("accept", ""),
+        "content_type": headers.get("content-type", ""),
+        "body_preview": (event.get("body") or "")[:200],
+    }))
 
     if path == "/health":
         return _ok({"status": "ok"})
 
     if path == "/mcp":
         if method == "GET":
-            return _handle_initialize()
+            # Streamable HTTP (2025-03-26) — server push not supported
+            return {
+                "statusCode": 405,
+                "headers": {"Content-Type": "application/json", "Allow": "POST"},
+                "body": '{"error": "Method Not Allowed. Use POST for MCP Streamable HTTP."}'
+            }
         if method == "POST":
             return _handle_tool_call(event)
 
     return _ok({"error": "Not found"}, status=404)
 
 
-def _handle_initialize() -> dict:
+def _handle_initialize(request_id=0) -> dict:
     """Return MCP server capabilities and tool manifest."""
     tools = []
     for name, meta in TOOL_REGISTRY.items():
@@ -34,7 +48,7 @@ def _handle_initialize() -> dict:
 
     body = {
         "jsonrpc": "2.0",
-        "id": 0,
+        "id": request_id,
         "result": {
             "protocolVersion": MCP_VERSION,
             "serverInfo": {"name": "aws-ghost-developer", "version": "1.0.0"},
@@ -72,7 +86,13 @@ def _handle_tool_call(event: dict) -> dict:
             return _ok(mcp_error(request_id, -32603, f"Internal error: {str(e)}"), status=500)
 
     if method == "tools/list":
-        return _handle_initialize()
+        return _handle_initialize(request_id)
+
+    if method == "initialize":
+        return _handle_initialize(request_id)
+
+    if method and method.startswith("notifications/"):
+        return {"statusCode": 202, "headers": {}, "body": ""}
 
     return _ok(mcp_error(request_id, -32601, f"Method not found: {method}"), status=404)
 
