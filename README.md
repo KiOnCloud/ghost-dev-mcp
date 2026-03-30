@@ -56,7 +56,7 @@ Two CloudFormation stacks:
 - AWS CLI configured (`aws configure`)
 - AWS SAM CLI (`pip install aws-sam-cli`)
 - Python 3.12+
-- `openssl` (available on macOS/Linux by default)
+- `openssl` (available on macOS/Linux by default; on Windows use Git Bash or WSL)
 
 ---
 
@@ -70,10 +70,21 @@ cd aws-ghost-developer
 pip install -r requirements.txt
 ```
 
-### 2. Run bootstrap (one command does everything)
+### 2. Configure region in samconfig.toml
+
+Open `samconfig.toml` and update the region to match where you want to deploy:
+
+```toml
+[default.deploy.parameters]
+region = "ap-southeast-1"   # change this to your target region
+```
+
+> **Note:** `bootstrap.sh` reads `AWS_DEFAULT_REGION` at runtime, but `sam deploy` also picks up `region` from `samconfig.toml`. Keep them in sync to avoid deploying to the wrong region.
+
+### 3. Run bootstrap (one command does everything)
 
 ```bash
-export AWS_DEFAULT_REGION=ap-southeast-1   # set your region
+export AWS_DEFAULT_REGION=ap-southeast-1   # must match samconfig.toml
 ./scripts/bootstrap.sh prod
 ```
 
@@ -81,7 +92,7 @@ This will:
 1. Generate a cryptographically secure API key
 2. Deploy `infra/secrets.yaml` to store the key in Secrets Manager
 3. Build and deploy the SAM stack
-4. Print the final `mcp_config.json` snippet
+4. Print the MCP endpoint URL and config snippet
 
 For other environments:
 
@@ -90,17 +101,67 @@ For other environments:
 ./scripts/bootstrap.sh staging
 ```
 
-### 3. Add to your MCP client
+At the end you will see output like:
 
-Paste the printed config into your Claude Desktop or Cursor MCP config file.
+```
+  {
+    "mcpServers": {
+      "aws-ghost-developer": {
+        "url": "https://<api-id>.execute-api.ap-southeast-1.amazonaws.com/mcp",
+        "transport": "http",
+        "headers": {
+          "x-api-key": "<generated-key>"
+        }
+      }
+    }
+  }
+```
 
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Copy the `url` and `x-api-key` values — you will need them in the next step.
+
+### 4. Add to your MCP client
+
+#### Claude Code CLI (recommended)
+
+```bash
+claude mcp add --transport http aws-ghost-developer \
+  https://<api-id>.execute-api.<region>.amazonaws.com/mcp \
+  --header "x-api-key:<your-generated-key>"
+```
+
+Verify it was added:
+
+```bash
+claude mcp get aws-ghost-developer
+```
+
+#### Claude Desktop (macOS)
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "aws-ghost-developer": {
-      "url": "https://<api-id>.execute-api.ap-southeast-1.amazonaws.com/mcp",
+      "url": "https://<api-id>.execute-api.<region>.amazonaws.com/mcp",
+      "transport": "http",
+      "headers": {
+        "x-api-key": "<your-generated-key>"
+      }
+    }
+  }
+}
+```
+
+#### Cursor
+
+Edit `.cursor/mcp.json` in your project root (or the global Cursor MCP config):
+
+```json
+{
+  "mcpServers": {
+    "aws-ghost-developer": {
+      "url": "https://<api-id>.execute-api.<region>.amazonaws.com/mcp",
       "transport": "http",
       "headers": {
         "x-api-key": "<your-generated-key>"
